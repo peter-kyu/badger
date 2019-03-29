@@ -17,6 +17,7 @@
 package badger
 
 import (
+	"bytes"
 	"encoding/binary"
 	"expvar"
 	"log"
@@ -504,6 +505,14 @@ func (db *DB) get(key []byte) (y.ValueStruct, error) {
 		vs := tables[i].Get(key)
 		y.NumMemtableGets.Add(1)
 		if vs.Meta != 0 || vs.Value != nil {
+			// try to find the key in level controller,
+			// if it starts with "!badger!move" and ts is smaller than what you expected
+			if bytes.HasPrefix(key, badgerMove) && y.ParseTs(key) > vs.Version {
+				lcvs, _ := db.lc.get(key)
+				if lcvs.Version > vs.Version {
+					return lcvs, nil
+				}
+			}
 			return vs, nil
 		}
 	}
