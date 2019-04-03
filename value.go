@@ -346,13 +346,15 @@ func (vlog *valueLog) rewrite(f *logFile, tr trace.Trace) error {
 
 	y.AssertTrue(vlog.kv != nil)
 	var count, moved int
+	curReadTs := vlog.kv.orc.readTs()
 	fe := func(e Entry) error {
 		count++
 		if count%100000 == 0 {
 			tr.LazyPrintf("Processing entry %d", count)
 		}
 
-		vs, err := vlog.kv.get(e.Key)
+		// find latest key
+		vs, err := vlog.kv.get(y.KeyWithTs(y.ParseKey(e.Key), curReadTs))
 		if err != nil {
 			return err
 		}
@@ -1091,6 +1093,7 @@ func (vlog *valueLog) doRunGC(lf *logFile, discardRatio float64, tr trace.Trace)
 	y.AssertTrue(vlog.kv != nil)
 	s := new(y.Slice)
 	var numIterations int
+	curReadTs := vlog.kv.orc.readTs()
 	err = vlog.iterate(lf, 0, func(e Entry, vp valuePointer) error {
 		numIterations++
 		esz := float64(vp.Len) / (1 << 20) // in MBs.
@@ -1115,7 +1118,8 @@ func (vlog *valueLog) doRunGC(lf *logFile, discardRatio float64, tr trace.Trace)
 		r.total += esz
 		r.count++
 
-		vs, err := vlog.kv.get(e.Key)
+		// find latest key
+		vs, err := vlog.kv.get(y.KeyWithTs(y.ParseKey(e.Key), curReadTs))
 		if err != nil {
 			return err
 		}
